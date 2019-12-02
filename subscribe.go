@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/stripe/stripe-go"
-	"github.com/stripe/stripe-go/balance"
 	"github.com/stripe/stripe-go/customer"
 	"github.com/stripe/stripe-go/plan"
 	"github.com/stripe/stripe-go/product"
@@ -25,12 +24,29 @@ func New(apiKey string) *Subscriber {
 	}
 }
 
-func (s *Subscriber) NewUser(name, email, phone *string) (*stripe.Customer, error) {
+type UserOpts struct {
+	Name string
+	Email string
+	Phone string
+	DefaultCard *CardOpts
+}
+
+func (u *UserOpts) ToCustomerParams() *stripe.CustomerParams{
 	params := &stripe.CustomerParams{}
-	params.Name = name
-	params.Email = email
-	params.Phone = phone
-	return customer.New(params)
+	if u.Name != "" {
+		params.Name = stripe.String(u.Name)
+	}
+	if u.Email != "" {
+		params.Email = stripe.String(u.Email)
+	}
+	if u.Phone != "" {
+		params.Phone = stripe.String(u.Phone)
+	}
+	return params
+}
+
+func (s *Subscriber) NewUser(u *UserOpts) (*stripe.Customer, error) {
+	return customer.New(u.ToCustomerParams())
 }
 
 func (s *Subscriber) DeleteUser(id string) (*stripe.Customer, error) {
@@ -125,16 +141,20 @@ func (s *Subscriber) GetSubscription(id string) (*stripe.Subscription, error) {
 	return sub.Get(id, nil)
 }
 
-func (s *Subscriber) ListSubscriptions(id string) *sub.Iter {
-	return sub.List(nil)
+func (s *Subscriber) ListSubscriptions(id string, limit int) *sub.Iter {
+	params := &stripe.SubscriptionListParams{}
+	limitList(limit, &params.Filters)
+	return sub.List(params)
 }
 
 func (s *Subscriber) UpdateSubscription(id string) (*stripe.Subscription, error) {
 	return sub.Get(id, nil)
 }
 
-func (s *Subscriber) ListUsers(id string) *customer.Iter {
-	return customer.List(nil)
+func (s *Subscriber) ListUsers(id string, limit int) *customer.Iter {
+	params := &stripe.CustomerListParams{}
+	limitList(limit, &params.Filters)
+	return customer.List(params)
 }
 
 type PlanOpts struct {
@@ -251,5 +271,7 @@ func (s *Subscriber) UpdateChargeAmount(id string, amount int64) (*stripe.Charge
 
 
 func limitList(limit int, filters *stripe.Filters) {
-	filters.AddFilter("limit", "", fmt.Sprintf("%d", limit))
+	if limit != 0 {
+		filters.AddFilter("limit", "", fmt.Sprintf("%d", limit))
+	}
 }

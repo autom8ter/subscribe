@@ -145,13 +145,13 @@ func (s *Subscriber) ListPlans(id string) *plan.Iter
 #### func (*Subscriber) ListSubscriptions
 
 ```go
-func (s *Subscriber) ListSubscriptions(id string) *sub.Iter
+func (s *Subscriber) ListSubscriptions(id string, limit int) *sub.Iter
 ```
 
 #### func (*Subscriber) ListUsers
 
 ```go
-func (s *Subscriber) ListUsers(id string) *customer.Iter
+func (s *Subscriber) ListUsers(id string, limit int) *customer.Iter
 ```
 
 #### func (*Subscriber) NewAPI
@@ -175,7 +175,7 @@ func (s *Subscriber) NewSubscription(subscription *SubscriptionOpts) (*stripe.Su
 #### func (*Subscriber) NewUser
 
 ```go
-func (s *Subscriber) NewUser(name, email, phone *string) (*stripe.Customer, error)
+func (s *Subscriber) NewUser(u *UserOpts) (*stripe.Customer, error)
 ```
 
 #### func (*Subscriber) UpdateAPIDescription
@@ -252,4 +252,23 @@ type SubscriptionOpts struct {
 	Plan       string
 	Card       *CardOpts
 }
+```
+
+
+#### type UserOpts
+
+```go
+type UserOpts struct {
+	Name        string
+	Email       string
+	Phone       string
+	DefaultCard *CardOpts
+}
+```
+
+
+#### func (*UserOpts) ToCustomerParams
+
+```go
+func (u *UserOpts) ToCustomerParams() *stripe.CustomerParams
 ```
