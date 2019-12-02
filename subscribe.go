@@ -1,11 +1,16 @@
+//go:generate godocdown -o README.md
+
 package subscribe
 
 import (
 	"errors"
+	"fmt"
 	"github.com/stripe/stripe-go"
+	"github.com/stripe/stripe-go/balance"
 	"github.com/stripe/stripe-go/customer"
 	"github.com/stripe/stripe-go/plan"
 	"github.com/stripe/stripe-go/product"
+	"github.com/stripe/stripe-go/charge"
 	"github.com/stripe/stripe-go/sub"
 )
 
@@ -60,6 +65,12 @@ func (s *Subscriber) UpdateUserPlan(id string, plan string) (*stripe.Customer, e
 	})
 }
 
+func (s *Subscriber) UpdateUserBalance(id string, balance int64) (*stripe.Customer, error) {
+	return customer.Update(id, &stripe.CustomerParams{
+		Balance: stripe.Int64(balance),
+	})
+}
+
 type SubscriptionOpts struct {
 	CustomerID string
 	Plan       string
@@ -79,21 +90,25 @@ type CardOpts struct {
 	AddressZip     string
 }
 
+func (c *CardOpts) ToParams() *stripe.CardParams {
+	params := &stripe.CardParams{}
+	params.Number = stripe.String(c.Number)
+	params.CVC = stripe.String(c.CVC)
+	params.ExpMonth = stripe.String(c.ExpMonth)
+	params.ExpMonth = stripe.String(c.ExpYear)
+	params.Name = stripe.String(c.Name)
+	params.AddressCity = stripe.String(c.AddressCity)
+	params.AddressCountry = stripe.String(c.AddressCountry)
+	params.AddressState = stripe.String(c.AddressState)
+	params.AddressLine1 = stripe.String(c.AddressLine1)
+	params.AddressZip = stripe.String(c.AddressZip)
+	return params
+}
+
 func (s *Subscriber) NewSubscription(subscription *SubscriptionOpts) (*stripe.Subscription, error) {
 	if subscription.Card != nil {
-		params := &stripe.CardParams{}
-		params.Number = stripe.String(subscription.Card.Number)
-		params.CVC = stripe.String(subscription.Card.CVC)
-		params.ExpMonth = stripe.String(subscription.Card.ExpMonth)
-		params.ExpMonth = stripe.String(subscription.Card.ExpYear)
-		params.Name = stripe.String(subscription.Card.Name)
-		params.AddressCity = stripe.String(subscription.Card.AddressCity)
-		params.AddressCountry = stripe.String(subscription.Card.AddressCountry)
-		params.AddressState = stripe.String(subscription.Card.AddressState)
-		params.AddressLine1 = stripe.String(subscription.Card.AddressLine1)
-		params.AddressZip = stripe.String(subscription.Card.AddressZip)
 		return sub.New(&stripe.SubscriptionParams{
-			Card:             params,
+			Card:             subscription.Card.ToParams(),
 			CollectionMethod: stripe.String(string(stripe.SubscriptionCollectionMethodChargeAutomatically)),
 			Customer:         stripe.String(subscription.CustomerID),
 			Plan:             stripe.String(subscription.Plan),
@@ -181,4 +196,60 @@ func (s *Subscriber) UpdateAPIDescription(id, description string) (*stripe.Produ
 		Active:      stripe.Bool(true),
 		Description: stripe.String(description),
 	})
+}
+
+type ChargeOpts struct {
+	Amount int64
+	Currency string
+	CustomerId string
+	Description string
+	Card *CardOpts
+}
+
+func (s *Subscriber) ChargeUser(c *ChargeOpts) (*stripe.Charge, error) {
+	return charge.New(&stripe.ChargeParams{
+		Amount:                    stripe.Int64(c.Amount),
+		Capture:                   nil,
+		Currency:                  stripe.String(c.Currency),
+		Customer:                  stripe.String(c.CustomerId),
+		Description: stripe.String(c.Description),
+		Source:                    &stripe.SourceParams{
+			Card:  c.Card.ToParams(),
+		},
+	})
+}
+
+func (s *Subscriber) GetCharge(id string) (*stripe.Charge, error) {
+	return charge.Get(id, nil)
+}
+
+func (s *Subscriber) ListCharges(limit int) (*charge.Iter) {
+	params := &stripe.ChargeListParams{}
+	limitList(limit, &params.Filters)
+	return charge.List(&stripe.ChargeListParams{})
+}
+
+func (s *Subscriber) UpdateChargeCard(id string, c *CardOpts) (*stripe.Charge, error) {
+	return charge.Update(id, &stripe.ChargeParams{
+		Source: &stripe.SourceParams{
+			Card: c.ToParams(),
+		},
+	})
+}
+
+func (s *Subscriber) UpdateChargeCustomer(id, customerId string) (*stripe.Charge, error) {
+	return charge.Update(id, &stripe.ChargeParams{
+		Customer: stripe.String(customerId),
+	})
+}
+
+func (s *Subscriber) UpdateChargeAmount(id string, amount int64) (*stripe.Charge, error) {
+	return charge.Update(id, &stripe.ChargeParams{
+		Amount: stripe.Int64(amount),
+	})
+}
+
+
+func limitList(limit int, filters *stripe.Filters) {
+	filters.AddFilter("limit", "", fmt.Sprintf("%d", limit))
 }
